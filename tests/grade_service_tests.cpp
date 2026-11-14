@@ -1,3 +1,4 @@
+
 #include "srm/grade_service.h"
 
 #include <cassert>
@@ -233,8 +234,9 @@ void testStudentCanViewOwnReportCard() {
 
     auto service = serviceFor(path);
 
-    assert(service.enterOrUpdateMarks(
-        teacher, "S001", "Mathematics", 1, "85").success);
+    const auto markResult = service.enterOrUpdateMarks(
+        teacher, "S001", "Mathematics", 1, "85");
+    assert(markResult.success);
 
     const auto report = service.generateReportCard(student, "S001");
 
@@ -251,6 +253,10 @@ void testStudentCannotViewAnotherStudentsReportCard() {
     std::filesystem::remove(path);
 
     auto service = serviceFor(path);
+
+    const auto markResult = service.enterOrUpdateMarks(
+        teacher, "S001", "Mathematics", 1, "85");
+    assert(markResult.success);
 
     const auto report = service.generateReportCard(
         anotherStudent, "S001"
@@ -269,6 +275,10 @@ void testUnauthenticatedStudentCannotViewReportCard() {
 
     auto service = serviceFor(path);
 
+    const auto markResult = service.enterOrUpdateMarks(
+        teacher, "S001", "Mathematics", 1, "85");
+    assert(markResult.success);
+
     const auto report = service.generateReportCard(
         unauthenticatedStudent, "S001"
     );
@@ -278,7 +288,6 @@ void testUnauthenticatedStudentCannotViewReportCard() {
 
     std::filesystem::remove(path);
 }
-
 
 }  // namespace
 
