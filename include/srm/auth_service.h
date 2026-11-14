@@ -1,3 +1,4 @@
+
 #pragma once
 
 #include "srm/common_types.h"
@@ -49,35 +50,25 @@ public:
     explicit AuthService(std::filesystem::path userFile,
                          unsigned int hashIterations = 10000);
 
-    // Initial setup mechanism: creates the first Administrator account.
-    // Allowed only when no user accounts exist in the repository.
     OperationResult setupInitialAdmin(const std::string& username,
                                       const std::string& password);
 
-    // SRM-SR-002: User registration requires an Administrator session (Operation::RegisterUser)
     OperationResult registerUser(const Session& adminSession,
                                  const std::string& username,
                                  const std::string& password,
                                  Role role,
                                  const std::string& studentRollNumber = "");
 
-    // SRM-F-002: User login with account lockout
-    // - Locks account after 3 consecutive failed login attempts
-    // - 4th login attempt is refused even if password is correct
-    // - Logs lockout event via AccessController
-    // - Persists locked state to storage across restarts
     LoginResult login(const std::string& username,
                       const std::string& password);
 
-    // SRM-SR-003: Admin-only account unlock
-    // - Only Administrator may unlock a locked account
-    // - Resets failed attempts to 0 and unlocks account
-    // - Persists unlocked state
     OperationResult unlockAccount(const Session& adminSession,
                                   const std::string& username);
-    // SRM-F-004: Allows an authenticated user to change their own password.
+
+    // SRM-F-004: Authenticated users can change their own passwords.
     OperationResult changePassword(const Session& session,
-                               const std::string& newPassword);
+                                   const std::string& newPassword);
+
     bool isAccountLocked(const std::string& username) const;
     int getFailedAttempts(const std::string& username) const;
 
@@ -86,6 +77,12 @@ public:
     bool isAuditRequired() const;
 
 private:
+    bool validateNewPassword(const std::string& password) const;
+
+    OperationResult persistPasswordChange(
+        UserAccount& user,
+        const std::string& newPassword);
+
     UserRepository repository_;
     unsigned int hashIterations_;
     bool storageReady_;

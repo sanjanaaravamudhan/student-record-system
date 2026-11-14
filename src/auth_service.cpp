@@ -232,7 +232,6 @@ LoginResult AuthService::login(
                 "Invalid username or password.", {}};
     }
 
-    // Reject login if the account is locked.
     if (user->isLocked) {
         if (auditService_) {
             auditService_->logLogin(
@@ -245,7 +244,6 @@ LoginResult AuthService::login(
                 {}};
     }
 
-    // Verify the supplied password.
     if (!Crypto::verifyPassword(password, user->passwordHash)) {
         int prevFailed = user->failedAttempts;
         bool prevLocked = user->isLocked;
@@ -293,7 +291,6 @@ LoginResult AuthService::login(
                 "Invalid username or password.", {}};
     }
 
-    // Reset failed attempts after successful authentication.
     if (user->failedAttempts > 0) {
         int prevFailed = user->failedAttempts;
         user->failedAttempts = 0;
@@ -373,6 +370,31 @@ OperationResult AuthService::unlockAccount(
             "Account unlocked successfully."};
 }
 
+bool AuthService::validateNewPassword(
+    const std::string& password) const {
+    return InputValidator::validatePassword(password);
+}
+
+OperationResult AuthService::persistPasswordChange(
+    UserAccount& user,
+    const std::string& newPassword) {
+
+    const std::string previousHash = user.passwordHash;
+
+    user.passwordHash = Crypto::hashPassword(
+        newPassword, "", hashIterations_);
+
+    if (!repository_.save()) {
+        user.passwordHash = previousHash;
+
+        return {false, ErrorCode::StorageFailure,
+                "Failed to save the new password."};
+    }
+
+    return {true, ErrorCode::None,
+            "Password changed successfully."};
+}
+
 // SRM-F-004: Change the authenticated user's own password.
 OperationResult AuthService::changePassword(
     const Session& session,
@@ -390,14 +412,12 @@ OperationResult AuthService::changePassword(
                 "User storage is not ready."};
     }
 
-    // Enforce the password requirements from the SRS.
-    if (!InputValidator::validatePassword(newPassword)) {
+    if (!validateNewPassword(newPassword)) {
         return {false, ErrorCode::InvalidInput,
                 "Password must contain at least 8 characters, "
                 "at least one letter, and at least one digit."};
     }
 
-    // Use the authenticated session username.
     UserAccount* user = repository_.findUser(session.username);
 
     if (user == nullptr) {
@@ -405,18 +425,10 @@ OperationResult AuthService::changePassword(
                 "Authenticated user account not found."};
     }
 
-    // Preserve the previous hash in case persistence fails.
-    const std::string previousHash = user->passwordHash;
+    const auto result = persistPasswordChange(*user, newPassword);
 
-    // Generate a new salted PBKDF2 hash.
-    user->passwordHash = Crypto::hashPassword(
-        newPassword, "", hashIterations_);
-
-    if (!repository_.save()) {
-        user->passwordHash = previousHash;
-
-        return {false, ErrorCode::StorageFailure,
-                "Failed to save the new password."};
+    if (!result.success) {
+        return result;
     }
 
     if (auditService_) {
@@ -425,8 +437,7 @@ OperationResult AuthService::changePassword(
             "User changed their own password");
     }
 
-    return {true, ErrorCode::None,
-            "Password changed successfully."};
+    return result;
 }
 
 bool AuthService::isAccountLocked(
