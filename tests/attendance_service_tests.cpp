@@ -1,3 +1,4 @@
+
 #include "srm/attendance_service.h"
 
 #include <cassert>
@@ -100,6 +101,7 @@ void testSecureInputValidation() {
 
     std::filesystem::remove(path);
 }
+
 void testAttendanceDeletionPersistsAcrossRestart() {
     const auto path = std::filesystem::temp_directory_path() /
                       "srm-attendance-restart.tsv";
@@ -117,17 +119,20 @@ void testAttendanceDeletionPersistsAcrossRestart() {
     {
         srm::AttendanceRepository repository(path);
 
-        assert(repository.load());
+        const bool loaded = repository.load();
+        assert(loaded);
         assert(repository.records().size() == 2);
 
-        assert(repository.removeByRollNumber("S001"));
+        const bool removed = repository.removeByRollNumber("S001");
+        assert(removed);
     }
 
     // Second run: verify the deletion was saved.
     {
         srm::AttendanceRepository restartedRepository(path);
 
-        assert(restartedRepository.load());
+        const bool reloaded = restartedRepository.load();
+        assert(reloaded);
         assert(restartedRepository.records().size() == 1);
         assert(restartedRepository.records()[0].rollNumber == "S002");
     }
